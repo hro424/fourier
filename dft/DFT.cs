@@ -1,64 +1,38 @@
 using System;
-using System.IO;
-using System.Text;
+using System.Numerics;
 
-public class DFT
+namespace Fourier
 {
-    private uint freq;
-    private const double PI2 = 2.0 * Math.PI;
-
-    public DFT(uint frequency)
+    public class DFT
     {
-        freq = frequency;
-    }
+        private uint freq;
+        private const double PI2 = 2.0 * Math.PI;
 
-    public Tuple<double[], double[]> transform(short[] sample, int len)
-    {
-        double[] re = new double[len];
-        double[] im = new double[len];
-
-        for (int i = 0; i < len; i++) {
-            double tmp = PI2 * i / freq;
-            for (int j = 0; j < len; j++) {
-                re[i] += sample[j] * Math.Cos(tmp * j);
-                im[i] += sample[j] * Math.Sin(tmp * j);
-            }
+        public DFT(uint frequency)
+        {
+            freq = frequency;
         }
 
-        return new Tuple<double[], double[]>(re, im);
-    }
-}
+        public Complex[] transform(short[] sample, int len)
+        {
+            Complex[] spectre = new Complex[len];
 
-class Test
-{
-    static void Main(string[] args)
-    {
-        WaveReader reader = new WaveReader(File.OpenRead(args[0]));
-        DFT dft = new DFT(reader.SamplingRate);
-        StreamWriter writer = File.CreateText(args[1]);
+            for (int i = 0; i < len; i++)
+            {
+                double re = 0.0;
+                double im = 0.0;
+                double tmp = PI2 * i / freq;
 
-        Console.WriteLine("Number of Channels: {0}", reader.NumChannels);
-        Console.WriteLine("Sampling Rate: {0}", reader.SamplingRate);
-        Console.WriteLine("Depth: {0}", reader.Depth);
-
-        try {
-            short[] sample = new short[reader.SamplingRate];
-            uint length = reader.SamplingRate / 2;
-
-            for (uint i = 0; i < reader.SamplingRate; i++) {
-                sample[i] = reader.ReadInt16();
+                for (int j = 0; j < len; j++)
+                {
+                    re += sample[j] * Math.Cos(tmp * j);
+                    im += sample[j] * Math.Sin(tmp * j);
+                }
+                spectre[i] = new Complex(re, im);
             }
 
-            Tuple<double[], double[]> result = dft.transform(sample, (int)length);
-            for (uint i = 0; i < length; i++) {
-                writer.WriteLine("{0} {1}", i, (int)result.Item1[i]);
-            }
+            return spectre;
         }
-        catch (System.IO.IOException e) {
-        }
-        finally {
-            writer.Close();
-            reader.Close();
-        }
+
     }
 }
