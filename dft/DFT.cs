@@ -21,7 +21,8 @@ namespace Fourier
             {
                 double re = 0.0;
                 double im = 0.0;
-                double tmp = PI2 * i / freq;
+                //double tmp = PI2 * i / freq;
+                double tmp = PI2 * i / len;
 
                 for (int j = 0; j < len; j++)
                 {
