@@ -1,1 +1,4 @@
-Program('dft.c')
+env = Environment()
+Program('dft', ['src/dft.c', 'src/wave.c'])
+#Object('src/dft.c')
+#Object('src/wave.c')
