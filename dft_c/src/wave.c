@@ -112,6 +112,8 @@ wave_open(const char *path, int mode)
         goto error;
     }
 
+    fmt_chunk_body_t *ptr = (fmt_chunk_body_t *)buf;
+
     sz = read(fd, &data_chunk_header, sizeof(data_chunk_header_t));
     if (sz < sizeof(data_chunk_header_t)) {
         close(fd);
