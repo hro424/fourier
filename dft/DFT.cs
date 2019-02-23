@@ -5,12 +5,12 @@ namespace Fourier
 {
     public class DFT
     {
-        private uint freq;
+        private uint freq_max;
         private const double PI2 = 2.0 * Math.PI;
 
-        public DFT(uint frequency)
+        public DFT(uint freq_sampling)
         {
-            freq = frequency;
+            freq_max = freq_sampling / 2;
         }
 
         public Complex[] transform(short[] sample, int len)
