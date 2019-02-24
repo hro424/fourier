@@ -11,6 +11,7 @@ main(int argc, char *argv[])
     }
 
     wave_handle_t *handle;
+    wave_buffer_t *buffer;
 
     printf("open %s\n", argv[1]);
     handle = wave_open(argv[1], O_RDONLY);
@@ -25,6 +26,9 @@ main(int argc, char *argv[])
     printf("block_size %u\n", handle->block_size);
     printf("bits_per_sample %u\n", handle->bits_per_sample);
 
+    buffer = wave_alloc_buffer(handle, 10);
+
+    wave_free_buffer(buffer);
     wave_close(handle);
 
     return EXIT_SUCCESS;
