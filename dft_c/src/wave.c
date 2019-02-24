@@ -155,14 +155,40 @@ wave_close(wave_handle_t *handle)
     }
 }
 
-ssize_t
-wave_read(wave_handle_t *handle, void *buf, size_t len)
+wave_buffer_t *
+wave_alloc_buffer(wave_handle_t *handle, int sec)
 {
-    return read(handle->fd, buf, len);
+    wave_buffer_t *buf = NULL;
+    void *ptr = malloc(handle->sample_rate * sec);
+    if (ptr != NULL) {
+        buf = malloc(sizeof(wave_buffer_t));
+        if (buf == NULL) {
+            free(ptr);
+        }
+        else {
+            buf->length = handle->sample_rate * sec;
+            buf->buffer = ptr;
+        }
+    }
+
+    return buf;
+}
+
+void
+wave_free_buffer(wave_buffer_t *buf)
+{
+    free(buf->buffer);
+    free(buf);
 }
 
 ssize_t
-wave_write(wave_handle_t *handle, const void *buf, size_t len)
+wave_read(wave_handle_t *handle, wave_buffer_t *buf)
 {
-    return write(handle->fd, buf, len);
+    return read(handle->fd, buf->buffer, buf->length);
+}
+
+ssize_t
+wave_write(wave_handle_t *handle, const wave_buffer_t *buf)
+{
+    return write(handle->fd, buf->buffer, buf->length);
 }
