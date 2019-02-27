@@ -1,4 +1,2 @@
-env = Environment()
-Program('dft', ['src/dft.c', 'src/wave.c'])
-#Object('src/dft.c')
-#Object('src/wave.c')
+env = Environment(CC = 'clang', CCFLAGS = '-Wall -O2')
+env.Program('dft', ['src/dft.c', 'src/wave.c'], LIBS=['m'])
