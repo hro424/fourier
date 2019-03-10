@@ -83,7 +83,7 @@ wave_open(const char *path, int mode)
     }
 
     sz = read(fd, &riff_chunk, sizeof(riff_chunk_t));
-    if (sz < 0) {
+    if (sz < sizeof(riff_chunk_t)) {
         close(fd);
         goto error;
     }
@@ -95,7 +95,7 @@ wave_open(const char *path, int mode)
     }
 
     sz = read(fd, &fmt_chunk_header, sizeof(fmt_chunk_header_t));
-    if (sz < 0) {
+    if (sz < sizeof(fmt_chunk_header_t)) {
         close(fd);
         goto error;
     }
