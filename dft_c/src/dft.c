@@ -18,79 +18,45 @@ void
 dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
         double *result_real, double *result_imag)
 {
-#if 0
     int ch = handle->num_channels;
-    int sample_count = ch * handle->sample_rate;
-
-    for (int k = 0; k < sample_count; k++) {
-        int kk = k / ch;
-        double a = 2.0 * M_PI * kk / handle->sample_rate;
-
-        if (result_real != NULL) {
-            result_real[k] = 0.0;
-        }
-
-        if (result_imag != NULL) {
-            result_imag[k] = 0.0;
-        }
-
-        /* Process only the left or right side channel at once */
-        for (int n = k & 1; n < sample_count; n += ch) {
-            int nn = n / ch;
-            if (result_real != NULL) {
-                double real = cos(a * nn);
-                result_real[k] += real * buf->buffer[n];
-            }
-
-            if (result_imag != NULL) {
-                double imag = sin(a * nn);
-                result_imag[k] += imag * buf->buffer[n];
-            }
-        }
-
-        if (result_real != NULL) {
-            result_real[k] = fabs(result_real[k]);
-        }
-
-        if (result_imag != NULL) {
-            result_imag[k] = fabs(result_imag[k]);
-        }
-    }
-#else
-    uint32_t sample_rate = handle->sample_rate;
+    int sample_rate = handle->sample_rate;
 
     for (int k = 0; k < sample_rate; k++) {
         double a = 2.0 * M_PI * k / sample_rate;
 
-        if (result_real != NULL) {
-            result_real[k * 2] = 0.0;
-        }
-
-        if (result_imag != NULL) {
-            result_imag[k * 2] = 0.0;
-        }
-
-        for (int n = 0; n < sample_rate; n++) {
+        for (int c = 0; c < ch; c++) {
+            int index = k * ch + c;
             if (result_real != NULL) {
-                double real = cos(a * n);
-                result_real[k * 2] += real * buf->buffer[n * 2];
+                result_real[index] = 0.0;
             }
 
             if (result_imag != NULL) {
-                double imag = sin(a * n);
-                result_imag[k * 2] += imag * buf->buffer[n * 2];
+                result_imag[index] = 0.0;
+            }
+
+            /* Process only the left or right side channel at once */
+            for (int n = 0; n < sample_rate; n++) {
+                int nn = n * ch + c;
+                if (result_real != NULL) {
+                    double real = cos(a * n);
+                    result_real[index] += real * buf->buffer[nn];
+                }
+
+                if (result_imag != NULL) {
+                    double imag = sin(a * n);
+                    result_imag[index] += imag * buf->buffer[nn];
+                }
+            }
+
+            if (result_real != NULL) {
+                result_real[index] = fabs(result_real[index]);
+            }
+
+            if (result_imag != NULL) {
+                result_imag[index] = fabs(result_imag[index]);
             }
         }
-
-        if (result_real != NULL) {
-            result_real[k * 2] = fabs(result_real[k * 2]);
-        }
-
-        if (result_imag != NULL) {
-            result_imag[k * 2] = fabs(result_imag[k * 2]);
-        }
     }
-#endif
 }
 
 int
