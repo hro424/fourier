@@ -158,15 +158,17 @@ wave_close(wave_handle_t *handle)
 wave_buffer_t *
 wave_alloc_buffer(wave_handle_t *handle, int sec)
 {
+    // Total number of samples in the given duration
+    size_t length = handle->num_channels * handle->sample_rate * sec;
     wave_buffer_t *buf = NULL;
-    void *ptr = malloc(handle->sample_rate * sec);
+    double *ptr = malloc(length * sizeof(double));
     if (ptr != NULL) {
         buf = malloc(sizeof(wave_buffer_t));
         if (buf == NULL) {
             free(ptr);
         }
         else {
-            buf->length = handle->sample_rate * sec;
+            buf->length = length;
             buf->buffer = ptr;
         }
     }
@@ -181,14 +183,51 @@ wave_free_buffer(wave_buffer_t *buf)
     free(buf);
 }
 
+#define BITS_PER_BYTE    8
+
 ssize_t
 wave_read(wave_handle_t *handle, wave_buffer_t *buf)
 {
-    return read(handle->fd, buf->buffer, buf->length);
+    ssize_t sz = 0;
+
+    if (handle == NULL || buf == NULL) {
+        goto exit;
+    }
+
+    if (handle->bits_per_sample == BITS_PER_SAMPLE_8) {
+        size_t len = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
+        uint8_t *tmp = malloc(len);
+        if (tmp == NULL) {
+            goto exit;
+        }
+
+        sz = read(handle->fd, tmp, len);
+        for (ssize_t i = 0; i < sz; i++) {
+            buf->buffer[i] = (double)tmp[i] / (double)UINT8_MAX;
+        }
+        free(tmp);
+    }
+    else if (handle->bits_per_sample == BITS_PER_SAMPLE_16) {
+        size_t len = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
+        int16_t *tmp = malloc(len);
+        if (tmp == NULL) {
+            goto exit;
+        }
+
+        sz = read(handle->fd, tmp, len);
+        sz /= sizeof(int16_t);
+        for (ssize_t i = 0; i < sz; i++) {
+            buf->buffer[i] = (double)tmp[i] / ((double)INT16_MAX + 1.0);
+        }
+        free(tmp);
+    }
+exit:
+    return sz;
 }
 
 ssize_t
 wave_write(wave_handle_t *handle, const wave_buffer_t *buf)
 {
-    return write(handle->fd, buf->buffer, buf->length);
+    //return write(handle->fd, buf->buffer, buf->length);
+    return 0;
 }

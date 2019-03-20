@@ -5,47 +5,49 @@
 #include "wave.h"
 
 
+/**
+ * Discrete Fourier Transformation
+ *
+ * @param sample_rate   sampling rate of the wave data.
+ * @param buf           the wave data.
+ * @param length        the length of the data in bytes.
+ */
 void
-dft(uint32_t sample_rate, wave_buffer_t *buf, size_t length)
+dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
+        double *result_real, double *result_imag)
 {
-    int16_t *block = (int16_t *)buf->buffer;
-    double *sample_real;
-    double *sample_imag;
-    double *result_real;
-    double *result_imag;
+    for (int k = 0; k < handle->sample_rate * handle->num_channels; k++) {
+        double a = 2.0 * M_PI * k / handle->sample_rate;
 
-    sample_real = malloc(sizeof(double) * sample_rate);
-    sample_imag = malloc(sizeof(double) * sample_rate);
-    result_real = malloc(sizeof(double) * sample_rate);
-    result_imag = malloc(sizeof(double) * sample_rate);
+        if (result_real != NULL) {
+            result_real[k] = 0;
+        }
 
-    printf("# Analyze %u samples.\n", sample_rate);
+        if (result_imag != NULL) {
+            result_imag[k] = 0;
+        }
 
-    for (int n = 0; n < sample_rate; n++) {
-        sample_real[n] = (double)block[n * 2] / 32768.0;
-        sample_imag[n] = 0.0;
-    }
+        int n = k & 1;
+        for (; n < handle->sample_rate; n++) {
+            if (result_real != NULL) {
+                double real = cos(a * n);
+                result_real[k] += real * buf->buffer[n];
+            }
 
-    for (int k = 0; k < sample_rate; k++) {
-        double a = 2.0 * M_PI * k / sample_rate;
-        result_real[k] = 0;
-        result_imag[k] = 0;
-        for (int n = 0; n < sample_rate; n++) {
-            double real = cos(a * n);
-            //double imag = -sin(a * n);
-            result_real[k] += real * sample_real[n];
-            result_imag[k] += real * sample_imag[n];
+            if (result_imag != NULL) {
+                double imag = sin(a * n);
+                result_imag[k] += imag * buf->buffer[n];
+            }
+        }
+
+        if (result_real != NULL) {
+            result_real[k] = fabs(result_real[k]);
+        }
+
+        if (result_imag != NULL) {
+            result_imag[k] = fabs(result_imag[k]);
         }
     }
-
-    for (int k = 0; k < sample_rate / 2; k++) {
-        printf("%d %f\n", k, fabs(result_real[k]));
-    }
-
-    free(sample_real);
-    free(sample_imag);
-    free(result_real);
-    free(result_imag);
 }
 
 int
@@ -70,20 +72,19 @@ main(int argc, char *argv[])
     printf("# block_size %u\n", handle->block_size);
     printf("# bits_per_sample %u\n", handle->bits_per_sample);
 
-    buffer = wave_alloc_buffer(handle, 2);
+    buffer = wave_alloc_buffer(handle, 1);
     printf("# Buffer allocated: %lu bytes\n", buffer->length);
 
     ssize_t length = wave_read(handle, buffer);
-    printf("# %ld bytes read\n", length);
-    /*
-    int16_t *ptr = (int16_t *)buffer->buffer;
-    for (int i = 0; i < 100; i++) {
-        printf("%d\n", ptr[i]);
+
+    double *result = malloc(sizeof(double) * length);
+    dft(handle->sample_rate, buffer, length, result, NULL);
+
+    for (int i = 0; i < length / 2; i++) {
+        printf("%d %f\n", i, result[i]);
     }
-    */
 
-    dft(handle->sample_rate, buffer, length / handle->block_size);
-
+    free(result);
     wave_free_buffer(buffer);
     wave_close(handle);
 
