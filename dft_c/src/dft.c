@@ -47,14 +47,6 @@ dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
                     result_imag[index] += imag * buf->buffer[nn];
                 }
             }
-
-            if (result_real != NULL) {
-                result_real[index] = fabs(result_real[index]);
-            }
-
-            if (result_imag != NULL) {
-                result_imag[index] = fabs(result_imag[index]);
-            }
         }
     }
 }
@@ -85,20 +77,19 @@ main(int argc, char *argv[])
     ssize_t length = wave_read(handle, buffer);
     printf("# %zd samples read.\n", length);
 
-    // This trick is necessary... Why?
-    for (int i = length / 2; i < length; i++) {
-        buffer->buffer[i] = 0.0;
-    }
-
-    double *result = malloc(sizeof(double) * length);
-    dft(handle, buffer, length, result, NULL);
+    double *real = malloc(sizeof(double) * length);
+    double *imag = malloc(sizeof(double) * length);
+    dft(handle, buffer, length, real, imag);
 
     /* Output only the left channel */
     for (int i = 0; i < length / 4; i++) {
-        printf("%d %f\n", i, result[i * 2]);
+        int ii = i * 2;
+        double amp = hypot(real[ii], imag[ii]);
+        printf("%d %f\n", i, amp);
     }
 
-    free(result);
+    free(imag);
+    free(real);
     wave_free_buffer(buffer);
     wave_close(handle);
 
