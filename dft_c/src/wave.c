@@ -208,13 +208,16 @@ wave_read(wave_handle_t *handle, wave_buffer_t *buf)
         free(tmp);
     }
     else if (handle->bits_per_sample == BITS_PER_SAMPLE_16) {
-        size_t len = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
-        int16_t *tmp = malloc(len);
+        // wave_buffer_t already counts the number of channels.
+        // So, the size of sample in bytes is taken into account here.
+        size_t bufsz = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
+        int16_t *tmp = malloc(bufsz);
         if (tmp == NULL) {
             goto exit;
         }
 
-        sz = read(handle->fd, tmp, len);
+        sz = read(handle->fd, tmp, bufsz);
+        // Adjust the count to the int16_t array.
         sz /= sizeof(int16_t);
         for (ssize_t i = 0; i < sz; i++) {
             buf->buffer[i] = (double)tmp[i] / ((double)INT16_MAX + 1.0);
