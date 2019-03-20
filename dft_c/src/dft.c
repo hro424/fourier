@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <math.h>
+#include <complex.h>
 #include "wave.h"
 
 
@@ -16,36 +17,28 @@
  */
 void
 dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
-        double *result_real, double *result_imag)
+        double complex *result)
 {
     int ch = handle->num_channels;
     int sample_rate = handle->sample_rate;
+
+    if (result == NULL) {
+        return;
+    }
 
     for (int k = 0; k < sample_rate; k++) {
         double a = 2.0 * M_PI * k / sample_rate;
 
         for (int c = 0; c < ch; c++) {
             int index = k * ch + c;
-            if (result_real != NULL) {
-                result_real[index] = 0.0;
-            }
-
-            if (result_imag != NULL) {
-                result_imag[index] = 0.0;
-            }
+            result[index] = CMPLX(0, 0);
 
             /* Process only the left or right side channel at once */
             for (int n = 0; n < sample_rate; n++) {
-                int nn = n * ch + c;
-                if (result_real != NULL) {
-                    double real = cos(a * n);
-                    result_real[index] += real * buf->buffer[nn];
-                }
-
-                if (result_imag != NULL) {
-                    double imag = sin(a * n);
-                    result_imag[index] += imag * buf->buffer[nn];
-                }
+                double sample = buf->buffer[n * ch + c];
+                double real = cos(a * n);
+                double imag = sin(a * n);
+                result[index] += real * sample + imag * sample * I;
             }
         }
     }
@@ -77,19 +70,17 @@ main(int argc, char *argv[])
     ssize_t length = wave_read(handle, buffer);
     printf("# %zd samples read.\n", length);
 
-    double *real = malloc(sizeof(double) * length);
-    double *imag = malloc(sizeof(double) * length);
-    dft(handle, buffer, length, real, imag);
+    double complex *result = malloc(sizeof(double complex) * length);
+    dft(handle, buffer, length, result);
 
     /* Output only the left channel */
     for (int i = 0; i < length / 4; i++) {
         int ii = i * 2;
-        double amp = hypot(real[ii], imag[ii]);
+        double amp = cabs(result[ii]);
         printf("%d %f\n", i, amp);
     }
 
-    free(imag);
-    free(real);
+    free(result);
     wave_free_buffer(buffer);
     wave_close(handle);
 
