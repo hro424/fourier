@@ -1,0 +1,2 @@
+env = Environment(CC = 'clang', CCFLAGS = '-Wall -O2')
+env.Program('fft', ['src/fft.c', 'src/wave.c'], LIBS=['m'])
