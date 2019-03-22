@@ -49,8 +49,9 @@ typedef struct wave_handle
 
 typedef struct wave_buffer
 {
+    /* Number of samples */
     size_t length;
-    //uint8_t *buffer;
+    /* Array of samples */
     double *buffer;
 } wave_buffer_t;
 
