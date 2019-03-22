@@ -13,7 +13,6 @@ dft(double *samples, size_t count, double complex *result)
         double a = 2.0 * M_PI * k / count;
         result[k] = CMPLX(0, 0);
 
-        /* Process only the left or right side channel at once */
         for (int n = 0; n < count; n++) {
             double sample = samples[n];
             double real = cos(a * n);
@@ -21,5 +20,11 @@ dft(double *samples, size_t count, double complex *result)
             result[k] += sample * (real - imag * I);
         }
     }
+    /*
+    printf("(%zu) (%f, %f) -> (%f + %f, %f + %f)\n",
+           count, samples[0], samples[1],
+           creal(result[0]), cimag(result[0]),
+           creal(result[1]), cimag(result[1]));
+           */
 }
 

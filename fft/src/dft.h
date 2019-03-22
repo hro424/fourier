@@ -13,4 +13,11 @@
  */
 void dft(double *samples, size_t count, double complex *result);
 
+static inline void
+dft2(double *sample, double complex *result)
+{
+    result[0] = sample[0] + sample[1];
+    result[1] = sample[0] - sample[1];
+}
+
 #endif /* FOURIER_DFT_H */

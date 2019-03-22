@@ -48,7 +48,7 @@ copy_and_sort(double *dest, size_t exp, double *src, size_t count)
 
     for (int i = 0; i < count; i++) {
         dest[itable[i]] = src[i];
-        //printf("%d->%zu %f\n", i, itable[i], src[i]);
+//printf("%d->%zu %f\n", i, itable[i], src[i]);
     }
 
     destroy_index_table(itable);
@@ -58,7 +58,7 @@ static void
 fold(size_t exp, double complex *input, double complex *output, size_t length)
 {
     int N = 1 << exp;
-    int a = 2.0 * M_PI / N;
+    double a = 2.0 * M_PI / (double)N;
     for (int i = 0; i < length / N; i++) {
         for (int j = 0; j < N / 2; j++) {
             double real = cos(a * j);
@@ -79,10 +79,14 @@ static inline void
 solve(double complex *input, double complex *output, size_t exp)
 {
     for (size_t i = 2; i < exp; i++) {
-        //printf("> %f %f\n", carg(input[0]), carg(input[880]));
         fold(i, input, output, 1 << exp);
+/*
+printf("%zu:\n", i);
+for (int j = 0; j < 16; j++) {
+    printf("%d %f  %f\n", j, creal(input[j]), creal(output[j]));
+}
+*/
         memcpy(input, output, sizeof(double complex) * (1 << exp));
-        //printf("> %f %f\n", carg(output[0]), carg(output[880]));
     }
 }
 
@@ -94,6 +98,13 @@ to_exp(size_t count)
     return exp;
 }
 
+/**
+ * Fast Fourier Transform.
+ *
+ * @param sample    the signal samples.
+ * @param count     the number of samples.
+ * @param result    the result of transform.
+ */
 void
 fft(double *samples, size_t count, double complex *result)
 {
@@ -101,7 +112,7 @@ fft(double *samples, size_t count, double complex *result)
      * Expand and align the buffer size to power of 2, which is the
      * assumption of FFT.
      */
-    size_t exp = to_exp(count);
+    size_t exp = to_exp(count - 1);
     size_t extended = 1 << exp;
     double *buf = calloc(extended, sizeof(double));
     if (buf == NULL) {
@@ -122,16 +133,12 @@ fft(double *samples, size_t count, double complex *result)
     }
 
     for (int i = 0; i < extended; i += N) {
-        dft(&buf[i], N, &dft_result[i]);
+        //dft(&buf[i], N, &dft_result[i]);
+        dft2(&buf[i], &dft_result[i]);
     }
 
     free(buf);
 
-    /*
-    for (int i = 0; i < extended; i++) {
-        printf("dft(%d) %f\n", i, carg(dft_result[i]));
-    }
-    */
     /* Fold */
     solve(dft_result, result, exp);
 
@@ -172,6 +179,7 @@ main(int argc, char *argv[])
     size_t len = length / wave_bsize(handle);
     double complex *result = calloc(len, sizeof(double complex));
     double *tmp = calloc(len, sizeof(double));
+    printf("# %zu samples to be processed.\n", len);
 
     wave_single_channel(handle, rbuf, tmp, len, 0);
 
