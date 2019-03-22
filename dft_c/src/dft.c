@@ -38,7 +38,7 @@ dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
                 double sample = buf->buffer[n * ch + c];
                 double real = cos(a * n);
                 double imag = sin(a * n);
-                result[index] += real * sample + imag * sample * I;
+                result[index] += sample * (real - imag * I);
             }
         }
     }
@@ -75,9 +75,9 @@ main(int argc, char *argv[])
 
     /* Output only the left channel */
     for (int i = 0; i < length / 4; i++) {
-        int ii = i * 2;
-        double amp = cabs(result[ii]);
-        printf("%d %f\n", i, amp);
+        printf("%d %f %f %f %f\n", i,
+                cabs(result[i * 2]), carg(result[i * 2]),
+                cabs(result[i * 2 + 1]), carg(result[i * 2 + 1]));
     }
 
     free(result);
