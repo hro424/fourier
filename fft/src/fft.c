@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <fcntl.h>
 #include <math.h>
 #include <complex.h>
 #include "wave.h"
@@ -32,34 +33,7 @@ destroy_index_table(size_t *table)
 }
 
 static void
-fold(size_t exp, double complex *input, double complex *output, size_t length)
-{
-    for (int i = 0; i < length / N; i++) {
-        for (j = 0; j < N / 2; j++) {
-            int m = i * N + j;
-            int n = m + N / 2;
-            double complex delta = omegaN[m] * input[n];
-            output[m] = input[m] + delta;
-            output[n] = input[m] - delta;
-        }
-    }
-}
-
-static void
-solve(double complex *input, double complex *output, size_t length)
-{
-    // TODO: Buffer management
-    double complex *tmp = malloc();
-
-    for (size_t exp = 2; exp < SIZE_OF_PROB; exp++) {
-        fold(exp, tmp, output, length);
-    }
-}
-
-#define CH2RAW(i, ch, offset)   ((i) * (ch) + (offset))
-
-static void
-copy_and_sort(size_t ch, double *dest, size_t exp, double *src, size_t len)
+copy_and_sort(double *dest, size_t exp, double *src, size_t count)
 {
     size_t *itable = create_index_table(exp);
     if (itable == NULL) {
@@ -68,54 +42,111 @@ copy_and_sort(size_t ch, double *dest, size_t exp, double *src, size_t len)
         return;
     }
 
-    for (int i = 0; i < len; i++) {
-        for (int j = 0; j < ch; j++) {
-            dest[CH2RAW(itable[i], ch, j)] = src[CH2RAW(i, ch, j)];
-        }
+    if ((1 << exp) < count) {
+        count = 1 << exp;
+    }
+
+    for (int i = 0; i < count; i++) {
+        dest[itable[i]] = src[i];
+        //printf("%d->%zu %f\n", i, itable[i], src[i]);
     }
 
     destroy_index_table(itable);
 }
 
-void
-fft(wave_handle_t *handle, wave_buffer_t *orig, double complex *result)
+static void
+fold(size_t exp, double complex *input, double complex *output, size_t length)
 {
-    size_t ch = handle->num_channels;
-    size_t len = handle->sample_rate;
-    double *ptr = orig->buf;
-    size_t exp;
+    int N = 1 << exp;
+    int a = 2.0 * M_PI / N;
+    for (int i = 0; i < length / N; i++) {
+        for (int j = 0; j < N / 2; j++) {
+            double real = cos(a * j);
+            double imag = sin(a * j);
+            int m = i * N + j;
+            int n = m + N / 2;
+            double complex delta = CMPLX(real, imag) * input[n];
+            output[m] = input[m] + delta;
+            output[n] = input[m] - delta;
+        }
+    }
+}
 
+/**
+ * Fold the result of DFT.  Uses the input array in a corruptive way.
+ */
+static inline void
+solve(double complex *input, double complex *output, size_t exp)
+{
+    for (size_t i = 2; i < exp; i++) {
+        //printf("> %f %f\n", carg(input[0]), carg(input[880]));
+        fold(i, input, output, 1 << exp);
+        memcpy(input, output, sizeof(double complex) * (1 << exp));
+        //printf("> %f %f\n", carg(output[0]), carg(output[880]));
+    }
+}
+
+static inline size_t
+to_exp(size_t count)
+{
+    size_t exp;
+    for (exp = 0; count > 0; count >>= 1, exp++) ;
+    return exp;
+}
+
+void
+fft(double *samples, size_t count, double complex *result)
+{
     /*
      * Expand and align the buffer size to power of 2, which is the
      * assumption of FFT.
      */
-    for (exp = 0; len > 0; len >>= 1, exp++) ;
-
+    size_t exp = to_exp(count);
     size_t extended = 1 << exp;
-    double buf = calloc(extended, sizeof(double));
+    double *buf = calloc(extended, sizeof(double));
     if (buf == NULL) {
         //TODO: Error report
         printf("ERROR\n");
         return;
     }
 
-    copy_and_sort(ch, buf, exp, ptr, len);
+    copy_and_sort(buf, exp, samples, count);
 
     /* DFT (N = 2) */
     const int N = 2;
-    double complex *tmp = malloc(sizeof(double complex) * extended);
-    if (tmp == NULL) {
+    double complex *dft_result = malloc(sizeof(double complex) * extended);
+    if (dft_result == NULL) {
         //TODO: Error report
         printf("ERROR\n");
         return;
     }
 
     for (int i = 0; i < extended; i += N) {
-        dft(ch, &buf[i], N, &tmp[i]);
+        dft(&buf[i], N, &dft_result[i]);
     }
 
+    free(buf);
+
+    /*
+    for (int i = 0; i < extended; i++) {
+        printf("dft(%d) %f\n", i, carg(dft_result[i]));
+    }
+    */
     /* Fold */
-    solve(tmp, result, exp);
+    solve(dft_result, result, exp);
+
+    free(dft_result);
+}
+
+static void
+dump(wave_handle_t *h)
+{
+    printf("# length %u\n", h->length);
+    printf("# num_channels %u\n", h->num_channels);
+    printf("# sample_rate %u\n", h->sample_rate);
+    printf("# byte_rate %u\n", h->byte_rate);
+    printf("# block_size %u\n", h->block_size);
+    printf("# bits_per_sample %u\n", h->bits_per_sample);
 }
 
 int
@@ -126,36 +157,34 @@ main(int argc, char *argv[])
     }
 
     wave_handle_t *handle;
-    wave_buffer_t *buffer;
-
     handle = wave_open(argv[1], O_RDONLY);
     if (handle == NULL) {
         return EXIT_FAILURE;
     }
 
-    printf("# length %u\n", handle->length);
-    printf("# num_channels %u\n", handle->num_channels);
-    printf("# sample_rate %u\n", handle->sample_rate);
-    printf("# byte_rate %u\n", handle->byte_rate);
-    printf("# block_size %u\n", handle->block_size);
-    printf("# bits_per_sample %u\n", handle->bits_per_sample);
+    dump(handle);
 
-    buffer = wave_alloc_buffer(handle, 1);
-    ssize_t length = wave_read(handle, buffer);
+    wave_read_buffer_t *rbuf = wave_alloc_read_buffer(handle, 1);
+
+    ssize_t length = wave_rawread(handle, rbuf);
     printf("# %zd samples read.\n", length);
 
-    double complex *result = malloc(sizeof(double complex) * length);
-    fft(handle, buffer, length, result);
+    size_t len = length / wave_bsize(handle);
+    double complex *result = calloc(len, sizeof(double complex));
+    double *tmp = calloc(len, sizeof(double));
+
+    wave_single_channel(handle, rbuf, tmp, len, 0);
+
+    fft(tmp, len, result);
 
     /* Output only the left channel */
-    for (int i = 0; i < length / 4; i++) {
-        printf("%d %f %f %f %f\n", i,
-                cabs(result[i * 2]), carg(result[i * 2]),
-                cabs(result[i * 2 + 1]), carg(result[i * 2 + 1]));
+    for (int i = 0; i < len / 2; i++) {
+        printf("%d %f %f 0 0\n", i, cabs(result[i]), carg(result[i]));
     }
 
+    free(tmp);
     free(result);
-    wave_free_buffer(buffer);
+    wave_free_read_buffer(rbuf);
     wave_close(handle);
 
     return EXIT_SUCCESS;
