@@ -195,13 +195,13 @@ wave_read(wave_handle_t *handle, wave_buffer_t *buf)
     }
 
     if (handle->bits_per_sample == BITS_PER_SAMPLE_8) {
-        size_t len = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
-        uint8_t *tmp = malloc(len);
+        size_t bufsz = buf->length * handle->bits_per_sample / BITS_PER_BYTE;
+        uint8_t *tmp = malloc(bufsz);
         if (tmp == NULL) {
             goto exit;
         }
 
-        sz = read(handle->fd, tmp, len);
+        sz = read(handle->fd, tmp, bufsz);
         for (ssize_t i = 0; i < sz; i++) {
             buf->buffer[i] = (double)tmp[i] / (double)UINT8_MAX;
         }
@@ -226,6 +226,80 @@ wave_read(wave_handle_t *handle, wave_buffer_t *buf)
     }
 exit:
     return sz;
+}
+
+wave_read_buffer_t *
+wave_alloc_read_buffer(wave_handle_t *h, unsigned int sec)
+{
+    wave_read_buffer_t *buf = NULL;
+    size_t length = h->byte_rate * sec;
+
+    uint8_t *ptr = malloc(length);
+    if (ptr != NULL) {
+        buf = malloc(sizeof(wave_read_buffer_t));
+        if (buf == NULL) {
+            free(ptr);
+        }
+        else {
+            buf->length = length;
+            buf->body = ptr;
+        }
+    }
+
+    return buf;
+}
+
+void
+wave_free_read_buffer(wave_read_buffer_t *buf)
+{
+    free(buf->body);
+    free(buf);
+}
+
+ssize_t
+wave_rawread(wave_handle_t *h, wave_read_buffer_t *buf)
+{
+    return read(h->fd, buf->body, buf->length);
+}
+
+ssize_t
+wave_single_channel(wave_handle_t *h, wave_read_buffer_t *buf,
+                    double *dest, size_t len, unsigned int ch)
+{
+    ssize_t l = -1;
+
+    if (h == NULL || dest == NULL || buf == NULL) {
+        goto exit;
+    }
+
+    size_t nch = h->num_channels;
+    size_t block_size = h->block_size;
+
+    if (!(ch < nch)) {
+        goto exit;
+    }
+
+    if (buf->length / block_size < len) {
+        l = buf->length / block_size;
+    }
+    else {
+        l = len;
+    }
+
+    if (h->bits_per_sample == BITS_PER_SAMPLE_8) {
+        for (size_t i = 0; i < (size_t)len; i++) {
+            dest[i] = (double)buf->body[i * nch + ch] / (double)UINT8_MAX;
+        }
+    }
+    else if (h->bits_per_sample == BITS_PER_SAMPLE_16) {
+        int16_t *ptr = (int16_t *)buf->body;
+        for (size_t i = 0; i < (size_t)len; i++) {
+            dest[i] = (double)ptr[i * nch + ch] / ((double)INT16_MAX + 1.0);
+        }
+    }
+
+exit:
+    return l;
 }
 
 ssize_t

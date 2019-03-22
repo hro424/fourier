@@ -47,12 +47,41 @@ typedef struct wave_handle
     uint16_t bits_per_sample;
 } wave_handle_t;
 
+static inline size_t
+wave_ch(wave_handle_t *h)
+{
+    return h->num_channels;
+}
+
+static inline uint32_t
+wave_sr(wave_handle_t *h)
+{
+    return h->sample_rate;
+}
+
+static inline uint32_t
+wave_br(wave_handle_t *h)
+{
+    return h->byte_rate;
+}
+
+static inline size_t
+wave_bsize(wave_handle_t *h)
+{
+    return h->block_size;
+}
+
 typedef struct wave_buffer
 {
     size_t length;
-    //uint8_t *buffer;
     double *buffer;
 } wave_buffer_t;
+
+typedef struct wave_read_buffer
+{
+    size_t length;
+    uint8_t *body;
+} wave_read_buffer_t;
 
 /**
  * Opens the wave file and creates a handle to it.
@@ -81,6 +110,15 @@ void wave_free_buffer(wave_buffer_t *buf);
  * Reads data in the wave file and fills the buffer with it.
  */
 ssize_t wave_read(wave_handle_t *handle, wave_buffer_t *buf);
+
+wave_read_buffer_t *wave_alloc_read_buffer(wave_handle_t *handle, unsigned int sec);
+
+void wave_free_read_buffer(wave_read_buffer_t *buf);
+
+ssize_t wave_rawread(wave_handle_t *handle, wave_read_buffer_t *buf);
+
+ssize_t wave_single_channel(wave_handle_t *h, wave_read_buffer_t *buf,
+                            double *dest, size_t len, unsigned int ch);
 
 /**
  * Writes the data in the buffer to the wave file.

@@ -3,43 +3,27 @@
 #include <fcntl.h>
 #include <math.h>
 #include <complex.h>
+#include "dft.h"
 #include "wave.h"
 
 
-/**
- * Discrete Fourier Transformation
- *
- * @param sample_rate   sampling rate of the wave data.
- * @param buf           the wave data.
- * @param length        the length to be processed.
- * @param result_real   the result of DFT.
- * @param result_imag   the result of DFT.
- */
 void
-dft(wave_handle_t *handle, wave_buffer_t *buf, size_t length,
-        double complex *result)
+dft(double *samples, size_t count, double complex *result)
 {
-    int ch = handle->num_channels;
-    int sample_rate = handle->sample_rate;
-
     if (result == NULL) {
         return;
     }
 
-    for (int k = 0; k < sample_rate; k++) {
-        double a = 2.0 * M_PI * k / sample_rate;
+    for (int k = 0; k < count; k++) {
+        double a = 2.0 * M_PI * k / count;
+        result[k] = CMPLX(0, 0);
 
-        for (int c = 0; c < ch; c++) {
-            int index = k * ch + c;
-            result[index] = CMPLX(0, 0);
-
-            /* Process only the left or right side channel at once */
-            for (int n = 0; n < sample_rate; n++) {
-                double sample = buf->buffer[n * ch + c];
-                double real = cos(a * n);
-                double imag = sin(a * n);
-                result[index] += sample * (real - imag * I);
-            }
+        /* Process only the left or right side channel at once */
+        for (int n = 0; n < count; n++) {
+            double sample = samples[n];
+            double real = cos(a * n);
+            double imag = sin(a * n);
+            result[k] += sample * (real - imag * I);
         }
     }
 }
@@ -52,7 +36,7 @@ main(int argc, char *argv[])
     }
 
     wave_handle_t *handle;
-    wave_buffer_t *buffer;
+    wave_read_buffer_t *rbuf;
 
     handle = wave_open(argv[1], O_RDONLY);
     if (handle == NULL) {
@@ -66,22 +50,27 @@ main(int argc, char *argv[])
     printf("# block_size %u\n", handle->block_size);
     printf("# bits_per_sample %u\n", handle->bits_per_sample);
 
-    buffer = wave_alloc_buffer(handle, 1);
-    ssize_t length = wave_read(handle, buffer);
-    printf("# %zd samples read.\n", length);
+    rbuf = wave_alloc_read_buffer(handle, 1);
+    printf("rbuf len: %zu\n", rbuf->length);
+    ssize_t length = wave_rawread(handle, rbuf);
+    printf("length %zd\n", length);
 
-    double complex *result = malloc(sizeof(double complex) * length);
-    dft(handle, buffer, length, result);
+    size_t len = length / wave_bsize(handle); /* length for a single channel */
+    double complex *result = malloc(sizeof(double complex) * len);
+    double *tmp = malloc(sizeof(double) * len);
+
+    wave_single_channel(handle, rbuf, tmp, len, 0);
+
+    dft(tmp, wave_sr(handle), result);
 
     /* Output only the left channel */
-    for (int i = 0; i < length / 4; i++) {
-        printf("%d %f %f %f %f\n", i,
-                cabs(result[i * 2]), carg(result[i * 2]),
-                cabs(result[i * 2 + 1]), carg(result[i * 2 + 1]));
+    for (int i = 0; i < len / 2; i++) {
+        printf("%d %f %f 0 0\n", i, cabs(result[i]), carg(result[i]));
     }
 
+    free(tmp);
     free(result);
-    wave_free_buffer(buffer);
+    wave_free_read_buffer(rbuf);
     wave_close(handle);
 
     return EXIT_SUCCESS;
