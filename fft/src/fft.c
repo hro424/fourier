@@ -6,15 +6,23 @@
 #include <math.h>
 #include <complex.h>
 #include "wave.h"
-#include "dft.h"
 
-static size_t*
+static inline size_t
+to_exp(size_t count)
+{
+    size_t exp;
+    for (exp = 0; count > 0; count >>= 1, exp++) ;
+    return exp;
+}
+
+static inline size_t*
 create_index_table(size_t exp)
 {
-    size_t *table = malloc(sizeof(size_t) * (1 << exp));
+    size_t length = 1 << exp;
+    size_t *table = malloc(sizeof(size_t) * length);
 
     if (table != NULL) {
-        for (size_t i = 0; i < (1 << exp); i++) {
+        for (size_t i = 0; i < length; i++) {
             size_t res = 0;
             for (size_t b = 0; b < exp; b++) {
                 res |= ((i >> b) & 1) << (exp - b - 1);
@@ -26,20 +34,18 @@ create_index_table(size_t exp)
     return table;
 }
 
-static void
+static inline void
 destroy_index_table(size_t *table)
 {
     free(table);
 }
 
-static void
-copy_and_sort(double *dest, size_t exp, double *src, size_t count)
+static int
+copy_and_sort(double complex *dest, size_t exp, double *src, size_t count)
 {
     size_t *itable = create_index_table(exp);
     if (itable == NULL) {
-        //TODO: Error report
-        printf("ERROR\n");
-        return;
+        return -1;
     }
 
     if ((1 << exp) < count) {
@@ -48,54 +54,33 @@ copy_and_sort(double *dest, size_t exp, double *src, size_t count)
 
     for (int i = 0; i < count; i++) {
         dest[itable[i]] = src[i];
-//printf("%d->%zu %f\n", i, itable[i], src[i]);
     }
 
     destroy_index_table(itable);
-}
-
-static void
-fold(size_t exp, double complex *input, double complex *output, size_t length)
-{
-    int N = 1 << exp;
-    double a = 2.0 * M_PI / (double)N;
-    for (int i = 0; i < length / N; i++) {
-        for (int j = 0; j < N / 2; j++) {
-            double real = cos(a * j);
-            double imag = sin(a * j);
-            int m = i * N + j;
-            int n = m + N / 2;
-            double complex delta = CMPLX(real, imag) * input[n];
-            output[m] = input[m] + delta;
-            output[n] = input[m] - delta;
-        }
-    }
+    return 0;
 }
 
 /**
  * Fold the result of DFT.  Uses the input array in a corruptive way.
  */
 static inline void
-solve(double complex *input, double complex *output, size_t exp)
+solve(double complex *input, size_t num_stages)
 {
-    for (size_t i = 2; i < exp; i++) {
-        fold(i, input, output, 1 << exp);
-/*
-printf("%zu:\n", i);
-for (int j = 0; j < 16; j++) {
-    printf("%d %f  %f\n", j, creal(input[j]), creal(output[j]));
-}
-*/
-        memcpy(input, output, sizeof(double complex) * (1 << exp));
+    for (size_t s = 1; s <= num_stages; s++) {
+        unsigned int N = 1 << s;        // Unit of batterfly
+        double a = 2.0 * M_PI / (double)N;
+        for (int i = 0; i < (1 << num_stages) / N; i++) {
+            for (int j = 0; j < N / 2; j++) {
+                double real = cos(a * j);
+                double imag = sin(a * j);
+                unsigned int m = i * N + j;
+                unsigned int n = m + N / 2;
+                double complex delta = CMPLX(real, imag) * input[n];
+                input[n] = input[m] - delta;
+                input[m] = input[m] + delta;
+            }
+        }
     }
-}
-
-static inline size_t
-to_exp(size_t count)
-{
-    size_t exp;
-    for (exp = 0; count > 0; count >>= 1, exp++) ;
-    return exp;
 }
 
 /**
@@ -105,7 +90,7 @@ to_exp(size_t count)
  * @param count     the number of samples.
  * @param result    the result of transform.
  */
-void
+int
 fft(double *samples, size_t count, double complex *result)
 {
     /*
@@ -113,36 +98,23 @@ fft(double *samples, size_t count, double complex *result)
      * assumption of FFT.
      */
     size_t exp = to_exp(count - 1);
-    size_t extended = 1 << exp;
-    double *buf = calloc(extended, sizeof(double));
+    double complex *buf = calloc(1 << exp, sizeof(double complex));
     if (buf == NULL) {
-        //TODO: Error report
-        printf("ERROR\n");
-        return;
+        return -1;
     }
 
-    copy_and_sort(buf, exp, samples, count);
-
-    /* DFT (N = 2) */
-    const int N = 2;
-    double complex *dft_result = malloc(sizeof(double complex) * extended);
-    if (dft_result == NULL) {
-        //TODO: Error report
-        printf("ERROR\n");
-        return;
+    if (copy_and_sort(buf, exp, samples, count) < 0) {
+        return -1;
     }
 
-    for (int i = 0; i < extended; i += N) {
-        //dft(&buf[i], N, &dft_result[i]);
-        dft2(&buf[i], &dft_result[i]);
-    }
+    solve(buf, exp);
 
+    for (int i = 0; i < count; i++) {
+        result[i] = buf[i];
+    }
     free(buf);
 
-    /* Fold */
-    solve(dft_result, result, exp);
-
-    free(dft_result);
+    return 0;
 }
 
 static void
