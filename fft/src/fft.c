@@ -61,10 +61,13 @@ copy_and_sort(double complex *dest, size_t exp, double *src, size_t count)
 }
 
 /**
- * Fold the result of DFT.  Uses the input array in a corruptive way.
+ * Fast Fourier Transform.
+ *
+ * @param input         the signal samples aligned in power of 2.
+ * @param num_stages    the number of stages.
  */
 static inline void
-solve(double complex *input, size_t num_stages)
+fft(double complex *input, size_t num_stages)
 {
     for (size_t s = 1; s <= num_stages; s++) {
         unsigned int N = 1 << s;        // Unit of batterfly
@@ -83,35 +86,34 @@ solve(double complex *input, size_t num_stages)
     }
 }
 
-/**
- * Fast Fourier Transform.
- *
- * @param sample    the signal samples.
- * @param count     the number of samples.
- * @param result    the result of transform.
- */
-int
-fft(double *samples, size_t count, double complex *result)
+static int
+do_fft(double *samples, size_t count)
 {
     /*
      * Expand and align the buffer size to power of 2, which is the
      * assumption of FFT.
      */
     size_t exp = to_exp(count - 1);
-    double complex *buf = calloc(1 << exp, sizeof(double complex));
+    size_t exp_len = 1 << exp;
+
+    double complex *buf = calloc(exp_len, sizeof(double complex));
     if (buf == NULL) {
         return -1;
     }
 
     if (copy_and_sort(buf, exp, samples, count) < 0) {
+        free(buf);
         return -1;
     }
 
-    solve(buf, exp);
+    fft(buf, exp);
 
-    for (int i = 0; i < count; i++) {
-        result[i] = buf[i];
+    double res = (double)count / (double)exp_len;
+    /* Output only the left channel */
+    for (int i = 0; i < count / 2; i++) {
+        printf("%f %f %f 0 0\n", res * i, cabs(buf[i]), carg(buf[i]));
     }
+
     free(buf);
 
     return 0;
@@ -149,23 +151,17 @@ main(int argc, char *argv[])
     printf("# %zd samples read.\n", length);
 
     size_t len = length / wave_bsize(handle);
-    double complex *result = calloc(len, sizeof(double complex));
     double *tmp = calloc(len, sizeof(double));
     printf("# %zu samples to be processed.\n", len);
 
     wave_single_channel(handle, rbuf, tmp, len, 0);
 
-    fft(tmp, len, result);
-
-    /* Output only the left channel */
-    for (int i = 0; i < len / 2; i++) {
-        printf("%d %f %f 0 0\n", i, cabs(result[i]), carg(result[i]));
-    }
+    do_fft(tmp, len);
 
     free(tmp);
-    free(result);
     wave_free_read_buffer(rbuf);
     wave_close(handle);
 
     return EXIT_SUCCESS;
 }
+
