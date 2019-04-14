@@ -40,6 +40,15 @@ destroy_index_table(size_t *table)
     free(table);
 }
 
+/**
+ * Copies the given samples so that they are aligned for the butterfly
+ * calculation.
+ *
+ * @param dest  the destination buffer.
+ * @param exp   the size of the destination in the power of two.
+ * @param src   the original samples.
+ * @param count the count of samples.
+ */
 static int
 copy_and_sort(double complex *dest, size_t exp, double *src, size_t count)
 {
@@ -52,6 +61,7 @@ copy_and_sort(double complex *dest, size_t exp, double *src, size_t count)
         count = 1 << exp;
     }
 
+    /* Sort the samples for the butterfly calculation. */
     for (int i = 0; i < count; i++) {
         dest[itable[i]] = src[i];
     }
@@ -91,7 +101,7 @@ do_fft(double *samples, size_t count)
 {
     /*
      * Expand and align the buffer size to power of 2, which is the
-     * assumption of FFT.
+     * precondition of FFT.
      */
     size_t exp = to_exp(count - 1);
     size_t exp_len = 1 << exp;
