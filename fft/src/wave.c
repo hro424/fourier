@@ -39,16 +39,23 @@
  * | Length | Wave data |
  */
 
+#define CHUNK_ID_SIZE       4
+#define CHUNK_ID_RIFF       "RIFF"
+#define CHUNK_ID_FMT        "fmt "
+#define CHUNK_ID_DATA       "data"
+#define FORMAT_TYPE_SIZE    4
+#define FORMAT_TYPE_WAVE    "WAVE"
+
 typedef struct riff_chunk
 {
-    char chunk_id[4];
+    char chunk_id[CHUNK_ID_SIZE];
     uint32_t chunk_size;
-    char format[4];
+    char format[FORMAT_TYPE_SIZE];
 } riff_chunk_t;
 
 typedef struct fmt_chunk_header
 {
-    char chunk_id[4];
+    char chunk_id[CHUNK_ID_SIZE];
     uint32_t chunk_size;
 } fmt_chunk_header_t;
 
@@ -64,7 +71,7 @@ typedef struct fmt_chunk_body
 
 typedef struct data_chunk_header
 {
-    char chunk_id[4];
+    char chunk_id[CHUNK_ID_SIZE];
     uint32_t chunk_size;
 } data_chunk_header_t;
 
@@ -88,8 +95,8 @@ wave_open(const char *path, int mode)
         goto error;
     }
 
-    if (strncmp(riff_chunk.chunk_id, "RIFF", 4) != 0 ||
-        strncmp(riff_chunk.format, "WAVE", 4) != 0) {
+    if (strncmp(riff_chunk.chunk_id, CHUNK_ID_RIFF, CHUNK_ID_SIZE) != 0 ||
+        strncmp(riff_chunk.format, FORMAT_TYPE_WAVE, FORMAT_TYPE_SIZE) != 0) {
         close(fd);
         goto error;
     }
@@ -100,7 +107,7 @@ wave_open(const char *path, int mode)
         goto error;
     }
 
-    if (strncmp(fmt_chunk_header.chunk_id, "fmt ", 4) != 0) {
+    if (strncmp(fmt_chunk_header.chunk_id, CHUNK_ID_FMT, CHUNK_ID_SIZE) != 0) {
         close(fd);
         goto error;
     }
@@ -120,7 +127,7 @@ wave_open(const char *path, int mode)
         goto error;
     }
 
-    if (strncmp(data_chunk_header.chunk_id, "data", 4) != 0) {
+    if (strncmp(data_chunk_header.chunk_id, CHUNK_ID_DATA, CHUNK_ID_SIZE) != 0) {
         close(fd);
         goto error;
     }

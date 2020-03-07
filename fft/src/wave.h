@@ -112,8 +112,17 @@ void wave_free_buffer(wave_buffer_t *buf);
  */
 ssize_t wave_read(wave_handle_t *handle, wave_buffer_t *buf);
 
+/**
+ * Allocates a buffer for wave data.
+ *
+ * @param handle    the handle of the wave file.
+ * @param sec       the size of the buffer in seconds.
+ */
 wave_read_buffer_t *wave_alloc_read_buffer(wave_handle_t *handle, unsigned int sec);
 
+/**
+ * Release the buffer.
+ */
 void wave_free_read_buffer(wave_read_buffer_t *buf);
 
 ssize_t wave_rawread(wave_handle_t *handle, wave_read_buffer_t *buf);
