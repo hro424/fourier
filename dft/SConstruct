@@ -1,2 +1,2 @@
-env = Environment(CC = 'clang', CCFLAGS = '-Wall -O2')
+env = Environment(CC = 'gcc', CCFLAGS = '-Wall -O2')
 env.Program('dft', ['src/dft.c', 'src/wave.c'], LIBS=['m'])
